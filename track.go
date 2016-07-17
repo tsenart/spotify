@@ -17,7 +17,10 @@ package spotify
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
+	"net/url"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -149,4 +152,33 @@ func (c *Client) GetTracks(ids ...ID) ([]*FullTrack, error) {
 		return nil, errors.New("spotify:  couldn't decode tracks")
 	}
 	return t.Tracks, nil
+}
+
+func (c *Client) GetRecommendations(limit int, genres []string, attrs map[string]interface{}) ([]*SimpleTrack, error) {
+	qry := url.Values{}
+	for attr, val := range attrs {
+		qry.Set(attr, fmt.Sprint(val))
+	}
+	qry.Set("seed_genres", strings.Join(genres, ","))
+	qry.Set("limit", strconv.Itoa(limit))
+
+	spotifyURL := baseAddress + "recommendations?" + qry.Encode()
+	resp, err := c.http.Get(spotifyURL)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return nil, decodeError(resp.Body)
+	}
+
+	var t struct {
+		Tracks []*SimpleTrack `json:"tracks"`
+	}
+	err = json.NewDecoder(resp.Body).Decode(&t)
+	if err != nil {
+		return nil, errors.New("spotify:  couldn't decode tracks")
+	}
+	return t.Tracks, nil
+
 }
